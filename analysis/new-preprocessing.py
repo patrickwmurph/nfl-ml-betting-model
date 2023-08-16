@@ -13,21 +13,21 @@ names_df = pd.read_csv(path + 'nfl_teams.csv')
 
 ################# Clean Data #################
 
-# Create a mapping dictionary from the "team_name" column to the "team_id" column in the team_names_df DataFrame
+# Map Team Names to Team Code
 team_name_to_id_mapping = dict(zip(names_df["team_name"], names_df["team_id"]))
 
-# Map the team names in the "Team" column of the original DataFrame to their corresponding "team_id" values
 betting_df['Opp'] = betting_df['Opp'].replace('St Louis Rams', 'St. Louis Rams')
 betting_df["Team"] = betting_df["Team"].map(team_name_to_id_mapping)
 betting_df["Opp"] = betting_df["Opp"].map(team_name_to_id_mapping)
 df["Team"] = df["Team"].map(team_name_to_id_mapping)
 df["Opp"] = df["Opp"].map(team_name_to_id_mapping)
 
-# Merge betting with team data
+# Merge in Betting data
 data = pd.merge(df, betting_df.drop(columns = ['Week', 'Opp']), on = ['Date', 'Team'], how = 'left')
 
-data['playoff'] = pd.to_numeric(data['Week'], errors='coerce').isna()
 
+# Fix week numbers
+data['playoff'] = pd.to_numeric(data['Week'], errors='coerce').isna()
 data.loc[(data['Week'] == '18'), 'Week'] = '17'
 data.loc[(data['Week'] == 'Wild Card'), 'Week'] = '18'
 data.loc[(data['Week'] == 'Division'), 'Week'] = '19'
@@ -40,11 +40,11 @@ data['schedule_season'] = data['Date'].apply(lambda x: x.year if x.month >= 9 el
 
 ################# Create W/L and Rec Columns #################
 
-# Create dictionaries mapping date and team to W/L and Rec
+# Create dict to map date and tm to W/L and Rec
 team_wl_dict = {(row['Date'], row['Opp']): row['W/L'] for index, row in data.iterrows()}
 team_rec_dict = {(row['Date'], row['Opp']): row['Rec'] for index, row in data.iterrows()}
  
-# Functions to get the opponent's W/L and Rec based on date and opponent's team abbreviation
+# Get opponenet W/L and Rec Functions
 def get_opponent_wl(row):
     return team_wl_dict.get((row['Date'], row['Team']), None)
 
@@ -55,7 +55,7 @@ def get_opponent_rec(row):
 data['Opp_W/L'] = data.apply(get_opponent_wl, axis=1)
 data['Opp_Rec'] = data.apply(get_opponent_rec, axis=1)
 
-# Function to shift the columns within each team's games
+# Shift columns within each team Functions 
 def shift_columns_within_team(team_data):
     team_data['Prev_Rec'] = team_data['Rec'].shift(1)
     team_data['Prev_W/L'] = team_data['W/L'].shift(1)
@@ -66,11 +66,11 @@ def shift_opp_columns_within_team(team_data):
     team_data['Prev_Opp_Rec'] = team_data['Opp_Rec'].shift(1)
     return team_data
 
-# Applying the shift separately for each team to create new columns for the previous game's W/L, Rec, and opponent's W/L and Rec
+# Apply functions
 data = data.groupby('Team').apply(shift_columns_within_team)
 data = data.sort_values(by = ['schedule_season', 'Date']).groupby('Opp').apply(shift_opp_columns_within_team)
 
-# Filling any NaN values that may have been introduced by the shift
+# Fill NA caused by shift
 data['Prev_W/L'] = data['Prev_W/L'].fillna('N/A')
 data['Prev_Rec'] = data['Prev_Rec'].fillna(0)
 data['Prev_Opp_W/L'] = data['Prev_Opp_W/L'].fillna('N/A')
@@ -78,9 +78,9 @@ data['Prev_Opp_Rec'] = data['Prev_Opp_Rec'].fillna(0)
 data['Date'] = pd.to_datetime(data['Date'])
 
 # Change W/L to Numeric
-
 data['Prev_W/L'] = np.where(data['Prev_W/L'] == 'W', 1,0)
 data['Prev_Opp_W/L'] =  np.where(data['Prev_Opp_W/L'] == 'W', 1,0)
+
 
 ################# Prepare Data for Rolling Ave by removing NA #################
 
@@ -107,7 +107,7 @@ data = data.sort_values(by='schedule_date')
 
 ################# Create Rolling Average Columns #################
 
-# Function to calculate rolling averages for both home and away games
+# Function to calculate rolling averages
 def calculate_rolling_averages_combined_corrected(data):
     unique_dates = sorted(data['schedule_date'].unique())
     unique_teams = data['team_home'].unique()

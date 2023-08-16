@@ -7,82 +7,75 @@ data = pd.read_csv(path + 'new-preprocessed_data.csv', index_col = 0)
 
 data['schedule_date'] = pd.to_datetime(data['schedule_date'])
 
+
+################# Initial Elo rating calculation #################
+
 def calc_expected_score(team_rating, opp_team_rating):
     return 1 / (1 + 10 ** ((opp_team_rating - team_rating) / 400))
 
 def calc_new_rating(team_rating, observed_score, expected_score, k_factor=20):
     return team_rating + k_factor * (observed_score - expected_score)
 
-# Function to apply the corrected Elo rating calculation with MOV multiplier
+
+################# ELO Rating Function #################
+
 def calculate_elo_ratings_with_mov(data):
-    # Initialize a dictionary to store Elo ratings for each team
+
     elo_ratings = {}
     
-    # Initialize lists to store home and away Elo ratings
     home_elo_ratings = []
     away_elo_ratings = []
 
-    # Sort the data by date to process games in chronological order
     data = data.sort_values(by='schedule_date')
     
-    # Get all unique teams
     all_teams = set(data['team_home'].unique()).union(set(data['team_away'].unique()))
 
-    # Set initial Elo rating for all teams
     for team in all_teams:
         elo_ratings[team] = 1500
 
-    # Iterate through each row (game) in the dataset
     for index, row in data.iterrows():
-        # Get the team names
+
         home_team = row['team_home']
         away_team = row['team_away']
 
-        # Reset Elo ratings to 1500 at the start of a new season for all teams
         if row['schedule_week'] == 1:
             for team in all_teams:
                 elo_ratings[team] = 1500
 
-        # Get current Elo ratings
         home_team_rating = elo_ratings[home_team]
         away_team_rating = elo_ratings[away_team]
 
-        # Append current Elo ratings to lists
         home_elo_ratings.append(home_team_rating)
         away_elo_ratings.append(away_team_rating)
 
-        # Calculate expected scores
         home_expected_score = calc_expected_score(home_team_rating, away_team_rating)
         away_expected_score = calc_expected_score(away_team_rating, home_team_rating)
 
-        # Determine observed scores based on game result
         winner_point_diff = abs(row['score_home'] - row['score_away'])
         home_wins = row['score_home'] > row['score_away']
 
         home_observed_score = 1 if home_wins else 0
         away_observed_score = 1 - home_observed_score
 
-        # Calculate MOV multiplier
         winner_elo_diff = home_team_rating - away_team_rating if home_wins else away_team_rating - home_team_rating
         mov_multiplier = log(winner_point_diff + 1) * (2.2 / ((winner_elo_diff * 0.001) + 2.2))
 
-        # Calculate new Elo ratings with MOV multiplier
         new_home_rating = home_team_rating + mov_multiplier * (home_observed_score - home_expected_score) * 40
         new_away_rating = away_team_rating + mov_multiplier * (away_observed_score - away_expected_score) * 40
 
-        # Update Elo ratings in the dictionary
         elo_ratings[home_team] = new_home_rating
         elo_ratings[away_team] = new_away_rating
 
-    # Add Elo ratings as new columns to the dataset
     data['home_elo_rating'] = home_elo_ratings
     data['away_elo_rating'] = away_elo_ratings
     
     return data
 
-# Apply the corrected Elo rating calculation with MOV multiplier to the dataset
+# Apply ELO Calculation
 data = calculate_elo_ratings_with_mov(data)
 
+
+################# Create Custom Ratings #################
 
 # Add custom ratings based off team stats
 
