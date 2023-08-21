@@ -1,3 +1,6 @@
 archive*
-*.DS_Store
 testing*
+*.DS_Store
+__pycache__/
+*.pyc
+.VS
