@@ -1,4 +1,5 @@
 import pandas as pd
+
 import numpy as np
 
 # Read the CSV file
@@ -281,6 +282,56 @@ games_df['home_team_h2h_win_pct'], games_df['away_team_h2h_win_pct'] = zip(*game
 copy_final_averages_df['home_team_h2h_win_pct'] = games_df['home_team_h2h_win_pct']
 copy_final_averages_df['away_team_h2h_win_pct'] = games_df['away_team_h2h_win_pct']
 
-################# Generate CSV #################
+################# Hisotrical Matchup Team Points #################
 
-copy_final_averages_df.to_csv(f'{path}new-preprocessed_data.csv')
+h2h_team_points_df = copy_final_averages_df.copy()
+
+h2h_team_points_df['matchup'] = h2h_team_points_df.apply(lambda x: '-'.join(sorted([x['team_away'], x['team_home']])), axis=1)
+
+h2h_team_points_df['away_team_hth_rolling_avg_points'] = h2h_team_points_df.groupby(['matchup', 'team_away'])['score_away'].transform(lambda x: x.shift(1).rolling(window=3).mean())
+
+h2h_team_points_df['home_team_hth_rolling_avg_points'] = h2h_team_points_df.groupby(['matchup', 'team_home'])['score_home'].transform(lambda x: x.shift(1).rolling(window=3).mean())
+
+h2h_team_points_df['combined_rolling_avg_points'] = h2h_team_points_df['away_team_hth_rolling_avg_points'] + h2h_team_points_df['home_team_hth_rolling_avg_points']
+
+h2h_team_points_df.drop(columns = ['matchup'], inplace = True)
+
+
+################# Prepare and Merge Moneyline data #################
+
+money_line_df = pd.read_csv(path + 'moneyline-data.csv', index_col=0)
+
+money_line_df.rename(columns = {'gameday' : 'schedule_date',
+                                'away_team' : 'team_away',
+                                'home_team' : 'team_home',
+                                'away_moneyline' : 'moneyline_away',
+                                'home_moneyline' : 'moneyline_home', 
+                                'away_spread_odds' : 'spread_odds_away',
+                                'home_spread_odds' : 'spread_odds_home', 
+                                }, inplace = True)
+
+money_line_df['schedule_date'] = pd.to_datetime(money_line_df['schedule_date'])
+
+updates = {
+    'LV': 'LVR',
+    'LA': 'LAR',
+    'OAK': 'LVR',
+    'SD': 'LAC',
+    'STL': 'LAR'
+}
+
+money_line_df['team_home'] = money_line_df['team_home'].map(updates).fillna(money_line_df['team_home'])
+money_line_df['team_away'] = money_line_df['team_away'].map(updates).fillna(money_line_df['team_away'])
+
+merged_moneyline = money_line_df[['schedule_date', 'team_home', 'team_away',
+                                  'moneyline_away','moneyline_home', 'spread_line',
+                                  'spread_odds_away', 'spread_odds_home','total_line', 
+                                  'under_odds', 'over_odds', 'div_game', 'roof', 
+                                  'surface', 'temp', 'wind', 
+                                  'away_qb_id', 'home_qb_id', 'away_qb_name',
+                                  'home_qb_name', 'away_coach', 'home_coach',
+                                  'referee', 'stadium_id','stadium']]
+
+averages_line_df = pd.merge(h2h_team_points_df, merged_moneyline, on = ['schedule_date', 'team_home', 'team_away'], how = 'left')
+
+averages_line_df.to_csv('../data/preprocessed_data.csv')

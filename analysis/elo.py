@@ -3,7 +3,7 @@ from math import log
 from sklearn.preprocessing import MinMaxScaler
 
 path = '../data/'
-data = pd.read_csv(path + 'new-preprocessed_data.csv', index_col = 0)
+data = pd.read_csv(path + 'preprocessed_data.csv', index_col = 0)
 
 data['schedule_date'] = pd.to_datetime(data['schedule_date'])
 
@@ -118,4 +118,4 @@ for team in data['team_home'].unique():
 data['home_rolling_team_rating'] = home_rolling_team_ratings
 data['away_rolling_team_rating'] = away_rolling_team_ratings
 
-data.to_csv(f'{path}new-preprocessed_data.csv', index=False)
+data.to_csv(f'{path}preprocessed_data.csv', index=False)
