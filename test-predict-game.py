@@ -10,9 +10,9 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import train_test_split
 
 path = 'data/'
-df = pd.read_csv(path + 'new-preprocessed_data.csv')
+df = pd.read_csv(path + 'preprocessed_data.csv')
 df.fillna(0, inplace=True)
-df.columns
+
 ################# Feature Selection #################
 
 features = [
@@ -36,8 +36,10 @@ features = [
     'home_favorite', 'away_favorite',
     'team_home_current_win_pct', 'team_away_current_win_pct',
     'team_home_lastseason_win_pct', 'team_away_lastseason_win_pct',
-    'home_team_h2h_win_pct', 'away_team_h2h_win_pct', 'home_elo_rating',
-    'away_elo_rating',
+    'home_team_h2h_win_pct', 'away_team_h2h_win_pct', 
+    'away_team_hth_rolling_avg_points','home_team_hth_rolling_avg_points', 
+    'combined_rolling_avg_points',
+    'home_elo_rating','away_elo_rating',
     'result'
 ]
 
@@ -67,8 +69,7 @@ feature_importance_df = pd.DataFrame({
 sorted_feature_importance = feature_importance_df.sort_values(by='Importance', ascending=False)
 
 # Pick top 20 features
-
-features = sorted_feature_importance.head(n=20)['Feature'].values
+features = sorted_feature_importance.head(n=29)['Feature'].values
 
 print(features)
 
@@ -238,19 +239,26 @@ roc_auc_score(y_test, predicted)
 
 ## Read in and merge Predicted Spread
 test.loc[:,'hm_prob'] = predicted
-test = test[['schedule_season', 'schedule_week', 'team_home', 'team_away', 'score_home', 'score_away', 'Spread_Value','hm_prob', 'result']]
+test = test[['schedule_season', 'schedule_week', 'team_home', 'team_away', 'score_home', 'score_away','moneyline_home','moneyline_away','hm_prob', 'result']]
 
 test_moneyline = test.copy()
+
+# Replace missing moneylines
+
+for col in ['moneyline_home', 'moneyline_away']:
+    test_moneyline[col] = test_moneyline[col].replace(0,100)
+
+test_moneyline.to_csv('testing-moneyline.csv', index=False)
+test_moneyline[['moneyline_home', 'moneyline_away']]
 ## Create Confidence of Bet
 
-bet_probaility = [.4, .6]
+bet_probaility = [.3, .7]
 
 ## Evalulate Bet Success
 test_moneyline['my_bet_won'] = (((test_moneyline.hm_prob >= bet_probaility[1]) & (test_moneyline.result == 1)) | 
                       ((test_moneyline.hm_prob <= bet_probaility[0]) & (test_moneyline.result == 0))).astype(int)
 test_moneyline['my_bet_lost'] = (((test_moneyline.hm_prob >= bet_probaility[1]) & (test_moneyline.result == 0)) | 
                        ((test_moneyline.hm_prob <= bet_probaility[0]) & (test_moneyline.result == 1))).astype(int)
-test_moneyline.to_csv('test_moneylineing.csv', index=False)
 
 print("Win Percentage: " + "{:.4f}".format(test_moneyline.my_bet_won.sum() / (test_moneyline.my_bet_lost.sum() + test_moneyline.my_bet_won.sum())))
 print("Bets Won: " + str(test_moneyline.my_bet_won.sum()))
@@ -267,7 +275,7 @@ results_df['total_bets'] = results_df.my_bet_won + results_df.my_bet_lost
 results_df['bet_accuracy'] = round((results_df.my_bet_won / results_df.total_bets) * 100, 2)
 results_df = results_df[['schedule_season', 'schedule_week', 'bet_accuracy', 
                          'total_bets', 'total_games']]
-
+results_df
 
 ## Create df of results :
 
@@ -280,4 +288,12 @@ final_df = results_df.append({
 }, ignore_index=True)
 
 final_df.to_csv(f'2022_season_results.csv', index=False)
+
+
+################# EV Calculation #################
+
+ev_df = test_moneyline.copy()
+
+
+
 
